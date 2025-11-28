@@ -9,12 +9,17 @@ import (
 	"github.com/iamanishx/xserve/internal/db"
 	"github.com/iamanishx/xserve/internal/engine"
 	"github.com/markbates/goth/gothic"
+	csrf "github.com/utrack/gin-csrf"
 )
 
 func AuthCallback(c *gin.Context) {
+	q := c.Request.URL.Query()
+	q.Add("provider", "google")
+	c.Request.URL.RawQuery = q.Encode()
+	
 	user, err := gothic.CompleteUserAuth(c.Writer, c.Request)
 	if err != nil {
-		c.String(400, "Auth failed")
+		c.String(400, "Auth failed: "+err.Error())
 		return
 	}
 
@@ -26,7 +31,7 @@ func AuthCallback(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 	if err := db.SaveUser(u); err != nil {
-		c.String(500, "Database error")
+		c.String(500, "Database error: "+err.Error())
 		return
 	}
 
@@ -38,6 +43,9 @@ func AuthCallback(c *gin.Context) {
 }
 
 func AuthLogin(c *gin.Context) {
+	q := c.Request.URL.Query()
+	q.Add("provider", "google")
+	c.Request.URL.RawQuery = q.Encode()
 	gothic.BeginAuthHandler(c.Writer, c.Request)
 }
 
@@ -47,7 +55,7 @@ func Dashboard(c *gin.Context) {
 	user, _ := db.GetUser(uid)
 	c.HTML(200, "dashboard.html", gin.H{
 		"User": user,
-		"CSRF": c.GetString("csrf_token"),
+		"CSRF": csrf.GetToken(c),
 	})
 }
 

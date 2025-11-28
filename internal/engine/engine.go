@@ -52,6 +52,7 @@ func BuildSite(userID string, files map[string][]byte) error {
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(files))
+	var fileList []string
 
 	for name, content := range files {
 		wg.Add(1)
@@ -64,7 +65,11 @@ func BuildSite(userID string, files map[string][]byte) error {
 			}
 
 			htmlContent := buf.String()
-			outName := name + ".html"
+			baseName := name
+			if filepath.Ext(name) == ".md" {
+				baseName = name[:len(name)-3]
+			}
+			outName := baseName + ".html"
 			outFile := filepath.Join(outDir, outName)
 
 			f, err := os.Create(outFile)
@@ -78,7 +83,7 @@ func BuildSite(userID string, files map[string][]byte) error {
 				Title   string
 				Content template.HTML
 			}{
-				Title:   name,
+				Title:   baseName,
 				Content: template.HTML(htmlContent),
 			}
 
@@ -87,6 +92,12 @@ func BuildSite(userID string, files map[string][]byte) error {
 				return
 			}
 		}(name, content)
+		
+		baseName := name
+		if filepath.Ext(name) == ".md" {
+			baseName = name[:len(name)-3]
+		}
+		fileList = append(fileList, baseName+".html")
 	}
 
 	wg.Wait()
@@ -95,5 +106,12 @@ func BuildSite(userID string, files map[string][]byte) error {
 	if len(errChan) > 0 {
 		return <-errChan
 	}
-	return nil
+
+	indexHTML := `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Your Site</title><style>body{font-family:sans-serif;max-width:800px;margin:2rem auto;padding:20px}h1{color:#333}ul{list-style:none;padding:0}li{margin:10px 0}a{color:#6c5ce7;text-decoration:none;font-size:18px}a:hover{text-decoration:underline}</style></head><body><h1>Your Pages</h1><ul>`
+	for _, f := range fileList {
+		indexHTML += `<li><a href="` + f + `">` + f + `</a></li>`
+	}
+	indexHTML += `</ul></body></html>`
+	
+	return os.WriteFile(filepath.Join(outDir, "index.html"), []byte(indexHTML), 0644)
 }
